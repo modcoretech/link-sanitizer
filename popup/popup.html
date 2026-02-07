@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Link Sanitizer</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Header -->
+  <header>
+    <div class="header-title">
+      <h1>Link Sanitizer</h1>
+      <span class="version-badge">v3.0</span>
+    </div>
+    <div class="header-actions">
+      <button id="historyBtn" class="icon-btn" aria-label="View History" title="History">
+        <span class="icon icon-history"></span>
+      </button>
+      <button id="settingsBtn" class="icon-btn" aria-label="Open Settings" title="Settings">
+        <span class="icon icon-settings"></span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <div class="container">
+    
+    <!-- Tabs Navigation -->
+    <div class="tabs" role="tablist">
+      <button 
+        id="tabSingle" 
+        class="tab-btn active" 
+        role="tab" 
+        aria-selected="true" 
+        aria-controls="panelSingle"
+        data-tab="single">
+        <span class="icon icon-sm icon-link"></span>
+        Single
+      </button>
+      <button 
+        id="tabBatch" 
+        class="tab-btn" 
+        role="tab" 
+        aria-selected="false" 
+        aria-controls="panelBatch"
+        data-tab="batch">
+        <span class="icon icon-sm icon-batch"></span>
+        Batch
+      </button>
+      <button 
+        id="tabStats" 
+        class="tab-btn" 
+        role="tab" 
+        aria-selected="false" 
+        aria-controls="panelStats"
+        data-tab="stats">
+        <span class="icon icon-sm icon-info"></span>
+        Stats
+      </button>
+    </div>
+
+    <!-- Single Link Tab -->
+    <div id="panelSingle" class="tab-content active" role="tabpanel" aria-labelledby="tabSingle">
+      
+      <!-- Input Section -->
+      <div class="input-section">
+        <div class="input-label">
+          <label for="linkInput">Paste URL to Clean</label>
+          <span class="input-helper" id="inputHelper">Press Ctrl+V to paste</span>
+        </div>
+        <textarea 
+          id="linkInput" 
+          placeholder="https://example.com?utm_source=google&fbclid=123..."
+          aria-describedby="inputHelper"
+          spellcheck="false"
+          autocomplete="off"></textarea>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="button-group">
+        <button id="sanitizeBtn" class="btn-primary">
+          <span class="icon icon-sm icon-check"></span>
+          Sanitize Link
+        </button>
+        <button id="pasteBtn" class="btn-secondary">
+          <span class="icon icon-sm icon-copy"></span>
+          Paste
+        </button>
+        <button id="clearBtn" class="btn-secondary">
+          <span class="icon icon-sm icon-clear"></span>
+          Clear
+        </button>
+      </div>
+
+      <!-- Status Message -->
+      <div id="statusMessage" class="status-msg hidden" role="status" aria-live="polite"></div>
+
+      <!-- Empty State -->
+      <div id="emptyState" class="empty-state">
+        <span class="icon icon-link"></span>
+        <h3>Ready to Clean URLs</h3>
+        <p>Paste a URL above or click "Paste" to automatically fetch from your clipboard. Tracking parameters will be removed instantly.</p>
+        <div class="empty-state-actions">
+          <button id="emptyPasteBtn" class="btn-primary">
+            <span class="icon icon-sm icon-copy"></span>
+            Paste from Clipboard
+          </button>
+          <button id="emptySettingsBtn" class="btn-secondary">
+            <span class="icon icon-sm icon-settings"></span>
+            Configure Settings
+          </button>
+        </div>
+      </div>
+
+      <!-- Results Section -->
+      <div id="resultsSection" class="results-section hidden">
+        
+        <!-- Cleaned URL Output -->
+        <div class="result-box">
+          <div class="result-header">
+            <span class="result-title">
+              <span class="icon icon-sm icon-check"></span>
+              Cleaned URL
+            </span>
+            <span id="statusBadge" class="badge badge-success">Clean</span>
+          </div>
+          <textarea 
+            id="outputUrl" 
+            readonly 
+            aria-label="Cleaned URL output"
+            spellcheck="false"></textarea>
+          <div class="button-group mt-1">
+            <button id="copyBtn" class="btn-secondary">
+              <span class="icon icon-sm icon-copy"></span>
+              Copy
+            </button>
+            <button id="openBtn" class="btn-secondary">
+              Open in New Tab
+            </button>
+          </div>
+        </div>
+
+        <!-- Tracking Parameters Details -->
+        <details id="trackingDetails">
+          <summary>
+            <span>Removed Parameters</span>
+            <span id="removedCount" class="badge badge-info">0</span>
+          </summary>
+          <div class="content">
+            <ul id="paramsList" class="param-list" aria-label="List of removed tracking parameters"></ul>
+          </div>
+        </details>
+
+        <!-- Additional Tools -->
+        <details id="toolsDetails">
+          <summary>
+            <span>Additional Tools</span>
+          </summary>
+          <div class="content">
+            <div class="button-group vertical">
+              <button id="decodeBtn" class="btn-secondary">
+                <span class="icon icon-sm icon-decode"></span>
+                Decode URL
+              </button>
+              <button id="shortenBtn" class="btn-secondary">
+                <span class="icon icon-sm icon-shorten"></span>
+                Shorten with TinyURL
+              </button>
+            </div>
+            <div id="toolResultSection" class="hidden mt-2">
+              <label for="toolResultOutput" class="input-label">Result:</label>
+              <textarea 
+                id="toolResultOutput" 
+                readonly 
+                aria-label="Tool result output"
+                spellcheck="false"></textarea>
+              <button id="copyToolResultBtn" class="btn-secondary mt-1">
+                <span class="icon icon-sm icon-copy"></span>
+                Copy Result
+              </button>
+            </div>
+          </div>
+        </details>
+
+      </div>
+    </div>
+
+    <!-- Batch Processing Tab -->
+    <div id="panelBatch" class="tab-content" role="tabpanel" aria-labelledby="tabBatch">
+      
+      <div class="input-section">
+        <div class="input-label">
+          <label for="batchInput">Paste Multiple URLs (one per line)</label>
+          <span class="input-helper">Each URL on a new line</span>
+        </div>
+        <textarea 
+          id="batchInput" 
+          placeholder="https://example.com?utm_source=ad&#10;https://another.com?fbclid=123&#10;https://third.com?gclid=456"
+          style="min-height: 120px;"
+          spellcheck="false"
+          autocomplete="off"></textarea>
+      </div>
+
+      <div class="button-group">
+        <button id="batchSanitizeBtn" class="btn-primary">
+          <span class="icon icon-sm icon-check"></span>
+          Clean All URLs
+        </button>
+        <button id="batchClearBtn" class="btn-secondary">
+          <span class="icon icon-sm icon-clear"></span>
+          Clear
+        </button>
+      </div>
+
+      <div id="batchStatus" class="status-msg hidden" role="status" aria-live="polite"></div>
+
+      <!-- Batch Results -->
+      <div id="batchResults" class="hidden">
+        <div class="result-box">
+          <div class="result-header">
+            <span class="result-title">Cleaned URLs</span>
+            <span id="batchCountBadge" class="badge badge-success">0 cleaned</span>
+          </div>
+          <textarea 
+            id="batchOutput" 
+            readonly 
+            style="min-height: 150px;"
+            aria-label="Batch cleaned URLs output"
+            spellcheck="false"></textarea>
+          <div class="button-group mt-1">
+            <button id="copyBatchBtn" class="btn-secondary">
+              <span class="icon icon-sm icon-copy"></span>
+              Copy All
+            </button>
+            <button id="exportBatchBtn" class="btn-secondary">
+              Export as Text
+            </button>
+          </div>
+        </div>
+
+        <details>
+          <summary>
+            <span>Batch Statistics</span>
+          </summary>
+          <div class="content">
+            <div class="stats-grid">
+              <div class="stat-card">
+                <div class="stat-value" id="batchProcessed">0</div>
+                <div class="stat-label">Processed</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-value" id="batchParamsRemoved">0</div>
+                <div class="stat-label">Params Removed</div>
+              </div>
+            </div>
+          </div>
+        </details>
+      </div>
+    </div>
+
+    <!-- Statistics Tab -->
+    <div id="panelStats" class="tab-content" role="tabpanel" aria-labelledby="tabStats">
+      
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-value" id="totalCleaned">0</div>
+          <div class="stat-label">Links Cleaned</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="totalParams">0</div>
+          <div class="stat-label">Trackers Removed</div>
+        </div>
+      </div>
+
+      <div class="result-box mt-2">
+        <div class="result-header">
+          <span class="result-title">
+            <span class="icon icon-sm icon-info"></span>
+            Privacy Impact
+          </span>
+        </div>
+        <p style="margin: 0; font-size: 13px; color: var(--text-secondary); line-height: 1.6;">
+          You've successfully removed <strong id="statsParamsText">0</strong> tracking parameters from 
+          <strong id="statsLinksText">0</strong> links, improving your privacy and reducing ad tracking.
+        </p>
+      </div>
+
+      <details class="mt-2">
+        <summary>
+          <span>Common Trackers Blocked</span>
+        </summary>
+        <div class="content">
+          <ul class="param-list">
+            <li class="param-item">
+              <code>utm_*</code>
+              <span class="icon icon-sm icon-check"></span>
+            </li>
+            <li class="param-item">
+              <code>fbclid</code>
+              <span class="icon icon-sm icon-check"></span>
+            </li>
+            <li class="param-item">
+              <code>gclid</code>
+              <span class="icon icon-sm icon-check"></span>
+            </li>
+            <li class="param-item">
+              <code>msclkid</code>
+              <span class="icon icon-sm icon-check"></span>
+            </li>
+            <li class="param-item">
+              <code>_hsenc</code>
+              <span class="icon icon-sm icon-check"></span>
+            </li>
+          </ul>
+        </div>
+      </details>
+
+      <div class="button-group mt-2">
+        <button id="resetStatsBtn" class="btn-danger">
+          Reset Statistics
+        </button>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <footer>
+      <div class="footer-links">
+        <a href="#" id="aboutLink" class="footer-link">About</a>
+        <a href="#" id="privacyLink" class="footer-link">Privacy</a>
+        <a href="#" id="keyboardLink" class="footer-link">Shortcuts</a>
+      </div>
+    </footer>
+
+  </div>
+
+  <!-- Onboarding Overlay (shown on first run) -->
+  <div id="onboardingOverlay" class="onboarding-overlay hidden">
+    <div class="onboarding-card">
+      <div class="onboarding-header">
+        <span class="icon icon-link"></span>
+        <h2>Welcome to Link Sanitizer!</h2>
+        <p>Your privacy-focused URL cleaning companion</p>
+      </div>
+
+      <div class="progress-bar">
+        <div id="onboardingProgress" class="progress-fill" style="width: 0%"></div>
+      </div>
+
+      <div id="onboardingStep1" class="onboarding-step">
+        <div class="onboarding-features">
+          <div class="feature-item">
+            <span class="icon icon-check"></span>
+            <div class="feature-content">
+              <h3>Automatic Tracking Removal</h3>
+              <p>Instantly remove 50+ tracking parameters from any URL, including UTM tags, Facebook Click IDs, Google Analytics, and more.</p>
+            </div>
+          </div>
+          <div class="feature-item">
+            <span class="icon icon-batch"></span>
+            <div class="feature-content">
+              <h3>Batch Processing</h3>
+              <p>Clean multiple URLs at once. Perfect for cleaning up link lists, reports, or sharing multiple links.</p>
+            </div>
+          </div>
+          <div class="feature-item">
+            <span class="icon icon-history"></span>
+            <div class="feature-content">
+              <h3>History & Statistics</h3>
+              <p>Track your cleaning history and see how many trackers you've blocked over time.</p>
+            </div>
+          </div>
+        </div>
+        <div class="button-group">
+          <button id="onboardingNext1" class="btn-primary">
+            Continue
+          </button>
+        </div>
+      </div>
+
+      <div id="onboardingStep2" class="onboarding-step hidden">
+        <div class="onboarding-features">
+          <div class="feature-item">
+            <span class="icon icon-settings"></span>
+            <div class="feature-content">
+              <h3>Auto-Sanitize (Optional)</h3>
+              <p>Enable automatic URL cleaning when opening links. Every link you click will be cleaned before loading.</p>
+            </div>
+          </div>
+          <div class="checkbox-wrapper">
+            <input type="checkbox" id="onboardingAutoSanitize">
+            <label for="onboardingAutoSanitize">Enable auto-sanitize for all links</label>
+          </div>
+          <div class="feature-item mt-2">
+            <span class="icon icon-copy"></span>
+            <div class="feature-content">
+              <h3>Auto-Paste & Auto-Copy</h3>
+              <p>Automatically paste from clipboard when opening the extension and copy cleaned URLs immediately.</p>
+            </div>
+          </div>
+          <div class="checkbox-wrapper">
+            <input type="checkbox" id="onboardingAutoPaste">
+            <label for="onboardingAutoPaste">Auto-paste from clipboard</label>
+          </div>
+          <div class="checkbox-wrapper">
+            <input type="checkbox" id="onboardingAutoCopy">
+            <label for="onboardingAutoCopy">Auto-copy cleaned URLs</label>
+          </div>
+        </div>
+        <div class="button-group">
+          <button id="onboardingBack" class="btn-secondary">
+            Back
+          </button>
+          <button id="onboardingComplete" class="btn-primary">
+            Get Started
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="popup.js"></script>
+</body>
+</html>
