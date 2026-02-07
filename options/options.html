@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Link Sanitizer - Settings</title>
+  <link rel="stylesheet" href="../popup/styles.css">
+  <style>
+    body {
+      width: 100%;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 40px 20px;
+    }
+
+    .settings-header {
+      text-align: center;
+      margin-bottom: 40px;
+      padding-bottom: 20px;
+      border-bottom: 2px solid var(--border-color);
+    }
+
+    .settings-header h1 {
+      font-size: 32px;
+      margin-bottom: 8px;
+    }
+
+    .settings-header p {
+      color: var(--text-secondary);
+      margin: 0;
+    }
+
+    .settings-section {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 20px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .section-header h2 {
+      margin: 0;
+      font-size: 20px;
+      color: var(--text-primary);
+    }
+
+    .section-description {
+      font-size: 14px;
+      color: var(--text-secondary);
+      margin-bottom: 20px;
+      line-height: 1.6;
+    }
+
+    .setting-item {
+      margin-bottom: 20px;
+      padding: 16px;
+      background: var(--bg-tertiary);
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-color);
+    }
+
+    .setting-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+
+    .setting-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .setting-description {
+      font-size: 13px;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+
+    .setting-note {
+      font-size: 12px;
+      color: var(--text-tertiary);
+      margin-top: 8px;
+      padding: 8px 12px;
+      background: var(--bg-color);
+      border-radius: var(--radius-sm);
+      border-left: 3px solid var(--info);
+    }
+
+    .setting-warning {
+      border-left-color: var(--warning);
+      color: var(--warning);
+    }
+
+    .custom-params-section {
+      margin-top: 12px;
+    }
+
+    .custom-params-section label {
+      display: block;
+      font-size: 13px;
+      font-weight: 500;
+      margin-bottom: 8px;
+      color: var(--text-secondary);
+    }
+
+    textarea.params-input {
+      width: 100%;
+      min-height: 100px;
+      font-family: 'Monaco', 'Menlo', monospace;
+      font-size: 12px;
+    }
+
+    .param-examples {
+      margin-top: 8px;
+      font-size: 12px;
+      color: var(--text-tertiary);
+    }
+
+    .param-examples code {
+      background: var(--bg-color);
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-family: 'Monaco', 'Menlo', monospace;
+    }
+
+    .save-bar {
+      position: sticky;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: var(--bg-secondary);
+      border-top: 1px solid var(--border-color);
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.3);
+      z-index: 100;
+    }
+
+    .save-status {
+      font-size: 14px;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .save-status.success {
+      color: var(--success);
+    }
+
+    .badge-new {
+      background: var(--accent-color);
+      color: white;
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .defaults-section {
+      background: var(--bg-color);
+      padding: 16px;
+      border-radius: var(--radius-md);
+      margin-top: 16px;
+    }
+
+    .defaults-section h3 {
+      font-size: 14px;
+      margin: 0 0 12px;
+      color: var(--text-primary);
+    }
+
+    .defaults-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 8px;
+      font-size: 12px;
+      color: var(--text-secondary);
+      font-family: 'Monaco', 'Menlo', monospace;
+    }
+
+    .defaults-list code {
+      display: block;
+      padding: 4px 8px;
+      background: var(--bg-tertiary);
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+  
+  <div class="settings-header">
+    <h1>Link Sanitizer Settings</h1>
+    <p>Customize how the extension cleans your URLs</p>
+  </div>
+
+  <!-- Automation Settings -->
+  <div class="settings-section">
+    <div class="section-header">
+      <span class="icon icon-settings"></span>
+      <h2>Automation</h2>
+    </div>
+    <p class="section-description">
+      Automate common tasks to speed up your workflow and save time.
+    </p>
+
+    <div class="setting-item">
+      <div class="setting-header">
+        <div class="setting-title">
+          <span class="icon icon-sm icon-link"></span>
+          Auto-Sanitize Links
+          <span class="badge-new">New</span>
+        </div>
+        <label class="toggle-switch">
+          <input type="checkbox" id="autoSanitize">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      <p class="setting-description">
+        Automatically clean all links before opening them. When enabled, every link you click will be sanitized to remove tracking parameters before the page loads.
+      </p>
+      <div class="setting-note setting-warning">
+        <strong>Note:</strong> This intercepts all navigation. If you experience issues with certain websites, you can disable this feature.
+      </div>
+    </div>
+
+    <div class="setting-item">
+      <div class="setting-header">
+        <div class="setting-title">
+          <span class="icon icon-sm icon-copy"></span>
+          Auto-Paste from Clipboard
+        </div>
+        <label class="toggle-switch">
+          <input type="checkbox" id="autoPaste">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      <p class="setting-description">
+        Automatically paste content from your clipboard when you open the extension popup. Perfect for quickly cleaning URLs you've just copied.
+      </p>
+      <div class="setting-note">
+        <strong>Privacy:</strong> Only URLs are processed. The extension reads your clipboard only when you open it.
+      </div>
+    </div>
+
+    <div class="setting-item">
+      <div class="setting-header">
+        <div class="setting-title">
+          <span class="icon icon-sm icon-check"></span>
+          Auto-Copy Results
+        </div>
+        <label class="toggle-switch">
+          <input type="checkbox" id="autoCopy">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      <p class="setting-description">
+        Automatically copy the cleaned URL to your clipboard after sanitizing. No need to click the copy button.
+      </p>
+    </div>
+  </div>
+
+  <!-- Privacy & History Settings -->
+  <div class="settings-section">
+    <div class="section-header">
+      <span class="icon icon-history"></span>
+      <h2>History & Privacy</h2>
+    </div>
+    <p class="section-description">
+      Control what data is stored locally on your device.
+    </p>
+
+    <div class="setting-item">
+      <div class="setting-header">
+        <div class="setting-title">
+          <span class="icon icon-sm icon-history"></span>
+          Keep Cleaning History
+        </div>
+        <label class="toggle-switch">
+          <input type="checkbox" id="keepHistory">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      <p class="setting-description">
+        Store a local history of cleaned URLs. This helps you track what you've cleaned and quickly re-access previous URLs.
+      </p>
+      <div class="setting-note">
+        <strong>Privacy:</strong> History is stored only on your device and never sent to any server.
+      </div>
+    </div>
+
+    <div class="setting-item">
+      <div class="setting-header">
+        <div class="setting-title">History Limit</div>
+      </div>
+      <p class="setting-description">
+        Maximum number of URLs to keep in history.
+      </p>
+      <div class="custom-params-section">
+        <label for="historyLimit">Maximum entries (1-500):</label>
+        <input 
+          type="number" 
+          id="historyLimit" 
+          min="1" 
+          max="500" 
+          value="50"
+          style="width: 100px; padding: 8px; background: var(--bg-color); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px;">
+      </div>
+    </div>
+
+    <div class="setting-item">
+      <div class="setting-header">
+        <div class="setting-title">
+          <span class="icon icon-sm icon-info"></span>
+          Show Notifications
+        </div>
+        <label class="toggle-switch">
+          <input type="checkbox" id="showNotifications">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      <p class="setting-description">
+        Display toast notifications when URLs are cleaned, copied, or when errors occur.
+      </p>
+    </div>
+  </div>
+
+  <!-- Advanced Settings -->
+  <div class="settings-section">
+    <div class="section-header">
+      <span class="icon icon-settings"></span>
+      <h2>Advanced Options</h2>
+    </div>
+    <p class="section-description">
+      Fine-tune how URLs are processed and cleaned.
+    </p>
+
+    <div class="setting-item">
+      <div class="setting-header">
+        <div class="setting-title">Preserve Hash Parameters</div>
+        <label class="toggle-switch">
+          <input type="checkbox" id="preserveHash">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      <p class="setting-description">
+        Keep tracking parameters that appear after the # (hash) symbol in URLs. Some single-page applications use hash parameters for navigation.
+      </p>
+      <div class="setting-note">
+        Example: <code>example.com#section?utm_source=ad</code> → hash params will be preserved
+      </div>
+    </div>
+
+    <div class="setting-item">
+      <div class="setting-header">
+        <div class="setting-title">Case-Sensitive Matching</div>
+        <label class="toggle-switch">
+          <input type="checkbox" id="caseSensitive">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      <p class="setting-description">
+        Match parameter names exactly as typed. When disabled, "UTM_SOURCE" and "utm_source" are treated the same.
+      </p>
+    </div>
+
+    <div class="setting-item">
+      <div class="setting-header">
+        <div class="setting-title">Block Redirect Trackers</div>
+        <label class="toggle-switch">
+          <input type="checkbox" id="blockRedirects">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      <p class="setting-description">
+        Remove common redirect parameters used by URL shorteners and social media platforms to track clicks.
+      </p>
+    </div>
+  </div>
+
+  <!-- Custom Parameters -->
+  <div class="settings-section">
+    <div class="section-header">
+      <span class="icon icon-settings"></span>
+      <h2>Custom Tracking Parameters</h2>
+    </div>
+    <p class="section-description">
+      Add your own tracking parameters to block. The extension already blocks 50+ common trackers by default.
+    </p>
+
+    <div class="setting-item">
+      <div class="custom-params-section">
+        <label for="customParams">
+          Custom Parameters (comma-separated):
+        </label>
+        <textarea 
+          id="customParams" 
+          class="params-input"
+          placeholder="my_tracker, internal_id, custom_param"
+          spellcheck="false"></textarea>
+        <div class="param-examples">
+          <strong>Examples:</strong> 
+          <code>my_tracker</code>, 
+          <code>internal_id</code>, 
+          <code>ref_code</code>
+        </div>
+      </div>
+    </div>
+
+    <!-- Default Parameters Reference -->
+    <details class="defaults-section">
+      <summary style="cursor: pointer; font-weight: 600; margin-bottom: 12px;">
+        View Default Blocked Parameters (50+)
+      </summary>
+      <div class="defaults-list" id="defaultParamsList"></div>
+    </details>
+  </div>
+
+  <!-- Data Management -->
+  <div class="settings-section">
+    <div class="section-header">
+      <span class="icon icon-info"></span>
+      <h2>Data Management</h2>
+    </div>
+    <p class="section-description">
+      Manage your local data and reset the extension to defaults.
+    </p>
+
+    <div class="button-group">
+      <button id="clearHistoryBtn" class="btn-secondary">
+        Clear History
+      </button>
+      <button id="resetStatsBtn" class="btn-secondary">
+        Reset Statistics
+      </button>
+      <button id="resetAllBtn" class="btn-danger">
+        Reset All Settings
+      </button>
+    </div>
+
+    <div class="setting-note" style="margin-top: 16px;">
+      <strong>Privacy Notice:</strong> All data is stored locally on your device using Chrome's sync storage. 
+      Nothing is sent to external servers except when you use the "Shorten URL" feature (which connects to TinyURL).
+    </div>
+  </div>
+
+  <!-- Save Bar -->
+  <div class="save-bar">
+    <div class="save-status" id="saveStatus">
+      <span class="icon icon-sm icon-info"></span>
+      <span id="saveStatusText">Make changes above</span>
+    </div>
+    <button id="saveBtn" class="btn-primary">
+      <span class="icon icon-sm icon-check"></span>
+      Save Settings
+    </button>
+  </div>
+
+  <script type="module" src="options.js"></script>
+</body>
+</html>
