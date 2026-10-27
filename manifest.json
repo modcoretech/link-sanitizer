@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Link Sanitizer",
-  "version": "3.1",
-  "description": "Advanced URL cleaning with automatic tracking removal, batch processing, history, and intelligent link interception.",
+  "version": "3.2",
+  "description": "Remove tracking parameters from URLs automatically — with batch processing, smart link interception, and a full history page.",
   "action": {
     "default_popup": "popup/popup.html",
     "default_title": "Link Sanitizer"
@@ -29,26 +29,13 @@
     "storage",
     "contextMenus",
     "tabs",
-    "scripting",
-    "webNavigation"
+    "scripting"
   ],
-  "host_permissions": [
-    "<all_urls>"
-  ],
+  "host_permissions": ["<all_urls>"],
   "commands": {
     "_execute_action": {
-      "suggested_key": {
-        "default": "Ctrl+Shift+L",
-        "mac": "Command+Shift+L"
-      },
+      "suggested_key": { "default": "Ctrl+Shift+L", "mac": "Command+Shift+L" },
       "description": "Open Link Sanitizer"
-    },
-    "quick_sanitize": {
-      "suggested_key": {
-        "default": "Ctrl+Shift+S",
-        "mac": "Command+Shift+S"
-      },
-      "description": "Quick sanitize clipboard"
     }
   }
 }
