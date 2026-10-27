@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Link Sanitizer",
   "version": "3.2",
-  "description": "Remove tracking parameters from URLs automatically — with batch processing, smart link interception, and a full history page.",
+  "description": "Clean up those messy links! Link Sanitizer removes tracking parameters from URLs, giving you cleaner, more private links.",
   "action": {
     "default_popup": "popup/popup.html",
     "default_title": "Link Sanitizer"
