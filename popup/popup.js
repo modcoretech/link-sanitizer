@@ -1,544 +1,321 @@
 import {
-  cleanLink,
-  batchCleanLinks,
-  getSettings,
-  saveSettings,
-  getStats,
-  updateStats,
-  getHistory,
+  cleanLink, batchCleanLinks,
+  getSettings, saveSettings,
   addToHistory,
-  clearHistory,
-  extractUrls,
   shortenUrl,
-  decodeUrl,
-  copyToClipboard,
-  readFromClipboard,
-  showToast,
-  formatTimestamp,
-  truncateText,
-  checkFirstRun,
-  completeOnboarding,
-  isValidUrl
+  copyToClipboard, readFromClipboard,
+  checkFirstRun, completeOnboarding,
+  isValidUrl, showError, flashButton
 } from '../core/utils.js';
 
-// DOM Elements
-let elements = {};
+let el = {};
+let settings = {};
 
-// State
-let currentSettings = {};
-let currentStats = {};
+document.addEventListener('DOMContentLoaded', init);
 
-/**
- * Initialize the popup
- */
-document.addEventListener('DOMContentLoaded', async () => {
-  initializeElements();
-  await loadSettings();
-  await loadStats();
-  setupEventListeners();
-  
-  // Check for first run
-  const isFirstRun = await checkFirstRun();
-  if (isFirstRun) {
-    showOnboarding();
-  } else {
-    // Auto-paste if enabled
-    if (currentSettings.autoPaste) {
-      await handleAutoPaste();
+async function init() {
+  cache();
+  el.versionBadge.textContent = 'v' + chrome.runtime.getManifest().version;
+  settings = await getSettings();
+  bind();
+
+  if (await checkFirstRun()) {
+    populateOnboarding();
+    el.onboardingDialog.showModal();
+  } else if (settings.autoPaste) {
+    handleAutoPaste();
+  }
+}
+
+function cache() {
+  const ids = [
+    'versionBadge', 'historyBtn', 'settingsBtn',
+    'tabSingle', 'tabBatch', 'panelSingle', 'panelBatch',
+    'linkInput', 'sanitizeBtn', 'pasteBtn', 'clearBtn',
+    'statusMessage', 'inputHelper', 'emptyState',
+    'resultsSection', 'outputUrl', 'statusBadge',
+    'copyBtn', 'openBtn', 'shortenBtn',
+    'removedCount', 'paramsList',
+    'batchInput', 'batchSanitizeBtn', 'batchClearBtn', 'batchStatus',
+    'batchResults', 'batchOutput', 'batchCountBadge',
+    'copyBatchBtn', 'exportBatchBtn', 'batchProcessed', 'batchParamsRemoved',
+    'aboutLink', 'privacyLink', 'keyboardLink',
+    'onboardingDialog', 'onboardingProgress',
+    'onboardingStep1', 'onboardingStep2',
+    'onboardingNext1', 'onboardingBack', 'onboardingComplete',
+    'onboardingAutoSanitize', 'onboardingAutoPaste', 'onboardingAutoCopy',
+    'errorDialog', 'errorDialogClose'
+  ];
+  for (const id of ids) el[id] = document.getElementById(id);
+}
+
+function populateOnboarding() {
+  el.onboardingAutoSanitize.checked = !!settings.autoSanitize;
+  el.onboardingAutoPaste.checked = !!settings.autoPaste;
+  el.onboardingAutoCopy.checked = !!settings.autoCopy;
+}
+
+function bind() {
+  [el.tabSingle, el.tabBatch].forEach(t => t.addEventListener('click', switchTab));
+
+  el.linkInput.addEventListener('input', handleInputChange);
+  el.linkInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSanitize(); }
+  });
+  el.sanitizeBtn.addEventListener('click', handleSanitize);
+  el.pasteBtn.addEventListener('click', handlePaste);
+  el.clearBtn.addEventListener('click', handleClear);
+  el.copyBtn.addEventListener('click', () => handleCopy(el.outputUrl.value, el.copyBtn));
+  el.openBtn.addEventListener('click', handleOpen);
+  el.shortenBtn.addEventListener('click', handleShorten);
+
+  el.batchSanitizeBtn.addEventListener('click', handleBatchSanitize);
+  el.batchClearBtn.addEventListener('click', handleBatchClear);
+  el.copyBatchBtn.addEventListener('click', () => handleCopy(el.batchOutput.value, el.copyBatchBtn));
+  el.exportBatchBtn.addEventListener('click', handleExportBatch);
+
+  el.historyBtn.addEventListener('click', openHistory);
+  el.settingsBtn.addEventListener('click', () => chrome.runtime.openOptionsPage());
+
+  el.aboutLink.addEventListener('click', e => { e.preventDefault(); infoDialog('About Link Sanitizer', 'A privacy-focused URL cleaning tool that removes tracking parameters from links.\n\nVersion ' + chrome.runtime.getManifest().version + ' · Made with ❤️ for privacy.'); });
+  el.privacyLink.addEventListener('click', e => { e.preventDefault(); infoDialog('Privacy', 'Link Sanitizer:\n• Does NOT collect any personal data\n• Does NOT send data to external servers\n• Stores settings and history locally\n• Only connects to TinyURL when you use "Shorten"\n\nYour data stays on your device.'); });
+  el.keyboardLink.addEventListener('click', e => { e.preventDefault(); infoDialog('Keyboard Shortcuts', 'In the popup:\n• Enter — Sanitize\n• Escape — Clear / close dialogs\n\nGlobal:\n• Ctrl+Shift+L — Open extension'); });
+
+  el.onboardingNext1.addEventListener('click', () => {
+    el.onboardingStep1.classList.add('hidden');
+    el.onboardingStep2.classList.remove('hidden');
+    el.onboardingProgress.style.width = '100%';
+  });
+  el.onboardingBack.addEventListener('click', () => {
+    el.onboardingStep2.classList.add('hidden');
+    el.onboardingStep1.classList.remove('hidden');
+    el.onboardingProgress.style.width = '50%';
+  });
+  el.onboardingComplete.addEventListener('click', finishOnboarding);
+  el.onboardingDialog.addEventListener('close', async () => {
+    if (settings.firstRun) {
+      await completeOnboarding();
+      settings = await getSettings();
+      if (settings.autoPaste) handleAutoPaste();
     }
-  }
-  
-  updateStatsDisplay();
-});
+  });
 
-/**
- * Initialize DOM element references
- */
-function initializeElements() {
-  elements = {
-    // Header
-    historyBtn: document.getElementById('historyBtn'),
-    settingsBtn: document.getElementById('settingsBtn'),
-    
-    // Tabs
-    tabSingle: document.getElementById('tabSingle'),
-    tabBatch: document.getElementById('tabBatch'),
-    tabStats: document.getElementById('tabStats'),
-    panelSingle: document.getElementById('panelSingle'),
-    panelBatch: document.getElementById('panelBatch'),
-    panelStats: document.getElementById('panelStats'),
-    
-    // Single Tab
-    linkInput: document.getElementById('linkInput'),
-    sanitizeBtn: document.getElementById('sanitizeBtn'),
-    pasteBtn: document.getElementById('pasteBtn'),
-    clearBtn: document.getElementById('clearBtn'),
-    statusMessage: document.getElementById('statusMessage'),
-    emptyState: document.getElementById('emptyState'),
-    emptyPasteBtn: document.getElementById('emptyPasteBtn'),
-    emptySettingsBtn: document.getElementById('emptySettingsBtn'),
-    resultsSection: document.getElementById('resultsSection'),
-    outputUrl: document.getElementById('outputUrl'),
-    statusBadge: document.getElementById('statusBadge'),
-    copyBtn: document.getElementById('copyBtn'),
-    openBtn: document.getElementById('openBtn'),
-    trackingDetails: document.getElementById('trackingDetails'),
-    removedCount: document.getElementById('removedCount'),
-    paramsList: document.getElementById('paramsList'),
-    toolsDetails: document.getElementById('toolsDetails'),
-    decodeBtn: document.getElementById('decodeBtn'),
-    shortenBtn: document.getElementById('shortenBtn'),
-    toolResultSection: document.getElementById('toolResultSection'),
-    toolResultOutput: document.getElementById('toolResultOutput'),
-    copyToolResultBtn: document.getElementById('copyToolResultBtn'),
-    
-    // Batch Tab
-    batchInput: document.getElementById('batchInput'),
-    batchSanitizeBtn: document.getElementById('batchSanitizeBtn'),
-    batchClearBtn: document.getElementById('batchClearBtn'),
-    batchStatus: document.getElementById('batchStatus'),
-    batchResults: document.getElementById('batchResults'),
-    batchOutput: document.getElementById('batchOutput'),
-    batchCountBadge: document.getElementById('batchCountBadge'),
-    copyBatchBtn: document.getElementById('copyBatchBtn'),
-    exportBatchBtn: document.getElementById('exportBatchBtn'),
-    batchProcessed: document.getElementById('batchProcessed'),
-    batchParamsRemoved: document.getElementById('batchParamsRemoved'),
-    
-    // Stats Tab
-    totalCleaned: document.getElementById('totalCleaned'),
-    totalParams: document.getElementById('totalParams'),
-    statsParamsText: document.getElementById('statsParamsText'),
-    statsLinksText: document.getElementById('statsLinksText'),
-    resetStatsBtn: document.getElementById('resetStatsBtn'),
-    
-    // Footer
-    aboutLink: document.getElementById('aboutLink'),
-    privacyLink: document.getElementById('privacyLink'),
-    keyboardLink: document.getElementById('keyboardLink'),
-    
-    // Onboarding
-    onboardingOverlay: document.getElementById('onboardingOverlay'),
-    onboardingProgress: document.getElementById('onboardingProgress'),
-    onboardingStep1: document.getElementById('onboardingStep1'),
-    onboardingStep2: document.getElementById('onboardingStep2'),
-    onboardingNext1: document.getElementById('onboardingNext1'),
-    onboardingBack: document.getElementById('onboardingBack'),
-    onboardingComplete: document.getElementById('onboardingComplete'),
-    onboardingAutoSanitize: document.getElementById('onboardingAutoSanitize'),
-    onboardingAutoPaste: document.getElementById('onboardingAutoPaste'),
-    onboardingAutoCopy: document.getElementById('onboardingAutoCopy')
-  };
+  el.errorDialogClose.addEventListener('click', () => el.errorDialog.close());
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && !document.querySelector('dialog[open]')) handleClear();
+  });
+
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === 'sync') loadSettings();
+  });
 }
 
-/**
- * Load settings from storage
- */
-async function loadSettings() {
-  currentSettings = await getSettings();
+async function loadSettings() { settings = await getSettings(); }
+
+function openHistory() {
+  chrome.tabs.create({ url: chrome.runtime.getURL('history/history.html') });
 }
 
-/**
- * Load statistics from storage
- */
-async function loadStats() {
-  currentStats = await getStats();
+function switchTab(e) {
+  const tab = e.currentTarget.dataset.tab;
+  document.querySelectorAll('.tab-btn').forEach(t => {
+    t.classList.toggle('active', t.dataset.tab === tab);
+    t.setAttribute('aria-selected', t.dataset.tab === tab ? 'true' : 'false');
+  });
+  document.querySelectorAll('.tab-content').forEach(p => {
+    p.classList.toggle('active', p.id === 'panel' + tab.charAt(0).toUpperCase() + tab.slice(1));
+  });
 }
 
-/**
- * Setup event listeners
- */
-function setupEventListeners() {
-  // Tab switching
-  [elements.tabSingle, elements.tabBatch, elements.tabStats].forEach(tab => {
-    tab.addEventListener('click', handleTabSwitch);
-  });
-  
-  // Single tab
-  elements.linkInput.addEventListener('input', handleInputChange);
-  elements.sanitizeBtn.addEventListener('click', handleSanitize);
-  elements.pasteBtn.addEventListener('click', handlePaste);
-  elements.clearBtn.addEventListener('click', handleClear);
-  elements.emptyPasteBtn.addEventListener('click', handlePaste);
-  elements.emptySettingsBtn.addEventListener('click', openSettings);
-  elements.copyBtn.addEventListener('click', () => handleCopy(elements.outputUrl.value));
-  elements.openBtn.addEventListener('click', handleOpen);
-  elements.decodeBtn.addEventListener('click', handleDecode);
-  elements.shortenBtn.addEventListener('click', handleShorten);
-  elements.copyToolResultBtn.addEventListener('click', () => handleCopy(elements.toolResultOutput.value));
-  
-  // Batch tab
-  elements.batchSanitizeBtn.addEventListener('click', handleBatchSanitize);
-  elements.batchClearBtn.addEventListener('click', handleBatchClear);
-  elements.copyBatchBtn.addEventListener('click', () => handleCopy(elements.batchOutput.value));
-  elements.exportBatchBtn.addEventListener('click', handleExportBatch);
-  
-  // Stats tab
-  elements.resetStatsBtn.addEventListener('click', handleResetStats);
-  
-  // Header
-  elements.historyBtn.addEventListener('click', showHistory);
-  elements.settingsBtn.addEventListener('click', openSettings);
-  
-  // Footer
-  elements.aboutLink.addEventListener('click', (e) => {
-    e.preventDefault();
-    showAbout();
-  });
-  elements.privacyLink.addEventListener('click', (e) => {
-    e.preventDefault();
-    showPrivacy();
-  });
-  elements.keyboardLink.addEventListener('click', (e) => {
-    e.preventDefault();
-    showKeyboardShortcuts();
-  });
-  
-  // Onboarding
-  elements.onboardingNext1.addEventListener('click', showOnboardingStep2);
-  elements.onboardingBack.addEventListener('click', showOnboardingStep1);
-  elements.onboardingComplete.addEventListener('click', finishOnboarding);
-  
-  // Keyboard shortcuts
-  document.addEventListener('keydown', handleKeyboardShortcut);
-}
-
-/**
- * Handle tab switching
- */
-function handleTabSwitch(e) {
-  const clickedTab = e.currentTarget;
-  const tabName = clickedTab.dataset.tab;
-  
-  // Update tabs
-  document.querySelectorAll('.tab-btn').forEach(tab => {
-    tab.classList.remove('active');
-    tab.setAttribute('aria-selected', 'false');
-  });
-  clickedTab.classList.add('active');
-  clickedTab.setAttribute('aria-selected', 'true');
-  
-  // Update panels
-  document.querySelectorAll('.tab-content').forEach(panel => {
-    panel.classList.remove('active');
-  });
-  document.getElementById(`panel${tabName.charAt(0).toUpperCase() + tabName.slice(1)}`).classList.add('active');
-}
-
-/**
- * Handle input change
- */
 function handleInputChange() {
-  const value = elements.linkInput.value.trim();
-  
-  if (value) {
-    elements.emptyState.classList.add('hidden');
-    elements.sanitizeBtn.disabled = false;
+  const value = el.linkInput.value.trim();
+  el.resultsSection.classList.add('hidden');
+
+  if (!value) {
+    el.emptyState.classList.remove('hidden');
+    el.sanitizeBtn.disabled = true;
+    el.inputHelper.textContent = 'Press Ctrl+V to paste';
+    el.inputHelper.style.color = '';
+    return;
+  }
+  el.emptyState.classList.add('hidden');
+  el.sanitizeBtn.disabled = false;
+
+  if (isValidUrl(value)) {
+    const preview = cleanLink(value, settings.customParams, {
+      preserveHash: settings.preserveHash,
+      caseSensitive: settings.caseSensitive
+    });
+    if (preview.success && preview.removedCount > 0) {
+      el.inputHelper.textContent = `${preview.removedCount} tracking parameter${preview.removedCount === 1 ? '' : 's'} detected`;
+      el.inputHelper.style.color = 'var(--success)';
+    } else {
+      el.inputHelper.textContent = 'No trackers detected';
+      el.inputHelper.style.color = 'var(--text-tertiary)';
+    }
   } else {
-    elements.resultsSection.classList.add('hidden');
-    elements.emptyState.classList.remove('hidden');
-    elements.sanitizeBtn.disabled = true;
+    el.inputHelper.textContent = 'Press Ctrl+V to paste';
+    el.inputHelper.style.color = '';
   }
 }
 
-/**
- * Handle auto-paste on load
- */
 async function handleAutoPaste() {
   const result = await readFromClipboard();
-  
-  if (result.success && result.text) {
-    const text = result.text.trim();
-    
-    // Check if it looks like a URL
-    if (isValidUrl(text)) {
-      elements.linkInput.value = text;
-      handleInputChange();
-      
-      // Auto-sanitize if enabled
-      if (currentSettings.autoCopy) {
-        await handleSanitize();
-      }
-    }
-  }
+  if (!result.success || !result.text) return;
+  const text = result.text.trim();
+  if (!isValidUrl(text)) return;
+  el.linkInput.value = text;
+  handleInputChange();
+  if (settings.autoCopy) await handleSanitize();
 }
 
-/**
- * Handle paste button
- */
 async function handlePaste() {
   const result = await readFromClipboard();
-  
-  if (result.success && result.text) {
-    elements.linkInput.value = result.text.trim();
-    handleInputChange();
-    showStatusMessage('Pasted from clipboard', 'info');
-  } else {
-    showStatusMessage('Could not read clipboard', 'error');
+  if (!result.success) {
+    showError('Clipboard unavailable', 'Link Sanitizer could not read your clipboard. Try pasting manually with Ctrl+V.');
+    return;
   }
+  if (!result.text?.trim()) {
+    showError('Clipboard is empty', 'Copy a URL first, then click Paste again.');
+    return;
+  }
+  el.linkInput.value = result.text.trim();
+  handleInputChange();
+  el.linkInput.focus();
 }
 
-/**
- * Handle sanitize
- */
 async function handleSanitize() {
-  const url = elements.linkInput.value.trim();
-  
-  if (!url) {
-    showStatusMessage('Please enter a URL', 'warning');
-    return;
-  }
-  
-  if (!isValidUrl(url)) {
-    showStatusMessage('Please enter a valid URL', 'error');
-    return;
-  }
-  
-  // Clean the link
-  const result = cleanLink(url, currentSettings.customParams, {
-    preserveHash: currentSettings.preserveHash,
-    caseSensitive: currentSettings.caseSensitive
+  const url = el.linkInput.value.trim();
+  if (!url) { flashStatus('Enter a URL first', 'warning'); return; }
+  if (!isValidUrl(url)) { showError('Invalid URL', 'That does not look like a valid URL. Please check it and try again.'); return; }
+
+  const result = cleanLink(url, settings.customParams, {
+    preserveHash: settings.preserveHash,
+    caseSensitive: settings.caseSensitive
   });
-  
-  if (result.success) {
-    // Update UI
-    elements.outputUrl.value = result.sanitizedUrl;
-    elements.removedCount.textContent = result.removedCount;
-    
-    // Update status badge
-    if (result.removedCount > 0) {
-      elements.statusBadge.textContent = `${result.removedCount} removed`;
-      elements.statusBadge.className = 'badge badge-success';
-    } else {
-      elements.statusBadge.textContent = 'Already clean';
-      elements.statusBadge.className = 'badge badge-info';
-    }
-    
-    // Update parameters list
-    updateParametersList(result.removedParams);
-    
-    // Show results
-    elements.emptyState.classList.add('hidden');
-    elements.resultsSection.classList.remove('hidden');
-    
-    // Update stats
-    await updateStats(1, result.removedCount);
-    currentStats = await getStats();
-    updateStatsDisplay();
-    
-    // Add to history
-    await addToHistory(result);
-    
-    // Auto-copy if enabled
-    if (currentSettings.autoCopy && result.removedCount > 0) {
-      await handleCopy(result.sanitizedUrl, true);
-    } else {
-      showStatusMessage(
-        result.removedCount > 0 
-          ? `Removed ${result.removedCount} tracking parameter${result.removedCount > 1 ? 's' : ''}` 
-          : 'URL is already clean',
-        result.removedCount > 0 ? 'success' : 'info'
-      );
-    }
+
+  if (!result.success) { showError('Could not clean URL', result.error || 'Unknown error.'); return; }
+
+  el.outputUrl.value = result.sanitizedUrl;
+  el.removedCount.textContent = result.removedCount;
+
+  if (result.removedCount > 0) {
+    el.statusBadge.textContent = `${result.removedCount} removed`;
+    el.statusBadge.className = 'badge badge-success';
   } else {
-    showStatusMessage('Error cleaning URL: ' + result.error, 'error');
+    el.statusBadge.textContent = 'Already clean';
+    el.statusBadge.className = 'badge badge-info';
+  }
+
+  renderParams(result.removedParams);
+  el.emptyState.classList.add('hidden');
+  el.resultsSection.classList.remove('hidden');
+
+  await addToHistory(result);
+
+  if (settings.autoCopy && result.removedCount > 0) {
+    const copy = await copyToClipboard(result.sanitizedUrl);
+    if (copy.success) flashButton(el.copyBtn, 'Copied');
   }
 }
 
-/**
- * Update parameters list
- */
-function updateParametersList(params) {
-  // Clear existing list
-  elements.paramsList.replaceChildren();
-  
-  if (params.length === 0) {
+function renderParams(params) {
+  el.paramsList.replaceChildren();
+  if (!params.length) {
     const li = document.createElement('li');
     li.className = 'param-item';
     li.style.fontStyle = 'italic';
-    li.style.color = 'var(--text-tertiary)';
     li.textContent = 'No tracking parameters found';
-    elements.paramsList.appendChild(li);
-  } else {
-    params.forEach(param => {
-      const li = document.createElement('li');
-      li.className = 'param-item';
-      
-      const code = document.createElement('code');
-      code.textContent = param;
-      
-      const icon = document.createElement('span');
-      icon.className = 'icon icon-sm icon-check';
-      
-      li.appendChild(code);
-      li.appendChild(icon);
-      elements.paramsList.appendChild(li);
-    });
+    el.paramsList.appendChild(li);
+    return;
+  }
+  for (const p of params) {
+    const li = document.createElement('li');
+    li.className = 'param-item';
+    const code = document.createElement('code');
+    code.textContent = p;
+    const icon = document.createElement('span');
+    icon.className = 'icon icon-sm icon-check';
+    li.append(code, icon);
+    el.paramsList.appendChild(li);
   }
 }
 
-/**
- * Handle copy
- */
-async function handleCopy(text, isAuto = false) {
+async function handleCopy(text, btn) {
+  if (!text) return;
   const result = await copyToClipboard(text);
-  
   if (result.success) {
-    showToast(
-      isAuto ? 'Cleaned & Copied!' : 'Copied to clipboard!',
-      'success'
-    );
+    flashButton(btn, 'Copied');
   } else {
-    showStatusMessage('Failed to copy', 'error');
+    showError('Copy failed', 'The browser blocked clipboard access. Select and copy the URL manually instead.');
   }
 }
 
-/**
- * Handle open in new tab
- */
 function handleOpen() {
-  const url = elements.outputUrl.value;
-  if (url) {
-    chrome.tabs.create({ url });
-  }
+  const url = el.outputUrl.value;
+  if (url) chrome.tabs.create({ url });
 }
 
-/**
- * Handle clear
- */
 function handleClear() {
-  elements.linkInput.value = '';
-  elements.outputUrl.value = '';
-  elements.toolResultOutput.value = '';
-  elements.resultsSection.classList.add('hidden');
-  elements.toolResultSection.classList.add('hidden');
-  elements.emptyState.classList.remove('hidden');
-  elements.sanitizeBtn.disabled = true;
-  showStatusMessage('Cleared', 'info');
+  el.linkInput.value = '';
+  el.outputUrl.value = '';
+  el.resultsSection.classList.add('hidden');
+  el.emptyState.classList.remove('hidden');
+  el.sanitizeBtn.disabled = true;
+  el.inputHelper.textContent = 'Press Ctrl+V to paste';
+  el.inputHelper.style.color = '';
 }
 
-/**
- * Handle decode
- */
-function handleDecode() {
-  const url = elements.outputUrl.value || elements.linkInput.value;
-  
-  if (!url) {
-    showStatusMessage('No URL to decode', 'warning');
-    return;
-  }
-  
-  const decoded = decodeUrl(url);
-  elements.toolResultOutput.value = decoded;
-  elements.toolResultSection.classList.remove('hidden');
-  showStatusMessage('URL decoded', 'success');
-}
-
-/**
- * Handle shorten
- */
 async function handleShorten() {
-  const url = elements.outputUrl.value || elements.linkInput.value;
-  
-  if (!url) {
-    showStatusMessage('No URL to shorten', 'warning');
-    return;
-  }
-  
-  showStatusMessage('Shortening...', 'info');
-  
+  const url = el.outputUrl.value || el.linkInput.value;
+  if (!url) { showError('No URL to shorten', 'Enter or sanitize a URL first.'); return; }
+  el.shortenBtn.disabled = true;
   const result = await shortenUrl(url);
-  
+  el.shortenBtn.disabled = false;
   if (result.success) {
-    elements.toolResultOutput.value = result.shortUrl;
-    elements.toolResultSection.classList.remove('hidden');
-    showStatusMessage('URL shortened!', 'success');
-    
-    // Auto-copy shortened URL
-    await copyToClipboard(result.shortUrl);
+    const copy = await copyToClipboard(result.shortUrl);
+    if (copy.success) flashButton(el.shortenBtn, 'Copied');
+    else showError('Copy failed', 'The short URL was generated, but copying failed. Here it is:\n' + result.shortUrl);
   } else {
-    showStatusMessage('Failed to shorten URL', 'error');
+    showError('Shortening failed', 'Could not reach TinyURL. Check your connection and try again.');
   }
 }
 
-/**
- * Handle batch sanitize
- */
 async function handleBatchSanitize() {
-  const input = elements.batchInput.value.trim();
-  
-  if (!input) {
-    showBatchStatus('Please enter URLs to clean', 'warning');
-    return;
-  }
-  
-  // Extract URLs from input
-  const urls = input.split('\n').map(line => line.trim()).filter(line => line);
-  
-  if (urls.length === 0) {
-    showBatchStatus('No valid URLs found', 'warning');
-    return;
-  }
-  
-  showBatchStatus(`Processing ${urls.length} URL(s)...`, 'info');
-  
-  // Batch clean
-  const results = batchCleanLinks(urls, currentSettings.customParams, {
-    preserveHash: currentSettings.preserveHash,
-    caseSensitive: currentSettings.caseSensitive
+  const input = el.batchInput.value.trim();
+  if (!input) { flashBatch('Enter URLs first', 'warning'); return; }
+
+  const urls = input.split('\n').map(l => l.trim()).filter(Boolean);
+  if (!urls.length) { flashBatch('No valid URLs found', 'warning'); return; }
+
+  const results = batchCleanLinks(urls, settings.customParams, {
+    preserveHash: settings.preserveHash,
+    caseSensitive: settings.caseSensitive
   });
-  
-  // Calculate totals
-  const totalProcessed = results.length;
-  const totalParamsRemoved = results.reduce((sum, r) => sum + r.removedCount, 0);
-  
-  // Update UI
-  const cleanedUrls = results.map(r => r.sanitizedUrl).join('\n');
-  elements.batchOutput.value = cleanedUrls;
-  elements.batchCountBadge.textContent = `${totalProcessed} cleaned`;
-  elements.batchProcessed.textContent = totalProcessed;
-  elements.batchParamsRemoved.textContent = totalParamsRemoved;
-  
-  // Show results
-  elements.batchResults.classList.remove('hidden');
-  
-  // Update stats
-  await updateStats(totalProcessed, totalParamsRemoved);
-  currentStats = await getStats();
-  updateStatsDisplay();
-  
-  // Add to history
-  for (const result of results) {
-    await addToHistory(result);
-  }
-  
-  showBatchStatus(
-    `Cleaned ${totalProcessed} URL(s), removed ${totalParamsRemoved} parameter(s)`,
-    'success'
-  );
+  if (!results.length) { flashBatch('None of those look like URLs', 'warning'); return; }
+
+  const totalParams = results.reduce((s, r) => s + r.removedCount, 0);
+
+  el.batchOutput.value = results.map(r => r.sanitizedUrl).join('\n');
+  el.batchCountBadge.textContent = `${results.length} cleaned`;
+  el.batchProcessed.textContent = results.length;
+  el.batchParamsRemoved.textContent = totalParams;
+  el.batchResults.classList.remove('hidden');
+  flashBatch(`Cleaned ${results.length} URL${results.length === 1 ? '' : 's'}`, 'success');
+
+  await addToHistory(results);
 }
 
-/**
- * Handle batch clear
- */
 function handleBatchClear() {
-  elements.batchInput.value = '';
-  elements.batchOutput.value = '';
-  elements.batchResults.classList.add('hidden');
-  showBatchStatus('Cleared', 'info');
+  el.batchInput.value = '';
+  el.batchOutput.value = '';
+  el.batchResults.classList.add('hidden');
 }
 
-/**
- * Handle export batch
- */
 function handleExportBatch() {
-  const content = elements.batchOutput.value;
-  
-  if (!content) {
-    showBatchStatus('No URLs to export', 'warning');
-    return;
-  }
-  
+  const content = el.batchOutput.value;
+  if (!content) { flashBatch('Nothing to export', 'warning'); return; }
   const blob = new Blob([content], { type: 'text/plain' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -546,272 +323,43 @@ function handleExportBatch() {
   a.download = `cleaned-urls-${Date.now()}.txt`;
   a.click();
   URL.revokeObjectURL(url);
-  
-  showBatchStatus('Exported to file', 'success');
 }
 
-/**
- * Handle reset stats
- */
-async function handleResetStats() {
-  if (confirm('Are you sure you want to reset all statistics? This cannot be undone.')) {
-    await chrome.storage.local.set({
-      totalCleaned: 0,
-      totalParamsRemoved: 0,
-      lastCleanedDate: null
-    });
-    
-    currentStats = await getStats();
-    updateStatsDisplay();
-    showToast('Statistics reset', 'success');
-  }
+function flashStatus(message, type = 'info') {
+  el.statusMessage.textContent = message;
+  el.statusMessage.className = `status-msg ${type}`;
+  clearTimeout(flashStatus._t);
+  flashStatus._t = setTimeout(() => el.statusMessage.classList.add('hidden'), 2500);
 }
 
-/**
- * Update stats display
- */
-function updateStatsDisplay() {
-  elements.totalCleaned.textContent = currentStats.totalCleaned || 0;
-  elements.totalParams.textContent = currentStats.totalParamsRemoved || 0;
-  elements.statsParamsText.textContent = currentStats.totalParamsRemoved || 0;
-  elements.statsLinksText.textContent = currentStats.totalCleaned || 0;
+function flashBatch(message, type = 'info') {
+  el.batchStatus.textContent = message;
+  el.batchStatus.className = `status-msg ${type}`;
+  clearTimeout(flashBatch._t);
+  flashBatch._t = setTimeout(() => el.batchStatus.classList.add('hidden'), 2500);
 }
 
-/**
- * Show status message
- */
-function showStatusMessage(message, type = 'info') {
-  elements.statusMessage.textContent = message;
-  elements.statusMessage.className = `status-msg ${type}`;
-  elements.statusMessage.classList.remove('hidden');
-  
-  setTimeout(() => {
-    elements.statusMessage.classList.add('hidden');
-  }, 3000);
+function infoDialog(title, body) {
+  const d = document.createElement('dialog');
+  const h = document.createElement('h2'); h.textContent = title;
+  const p = document.createElement('p'); p.style.whiteSpace = 'pre-line'; p.textContent = body;
+  const wrap = document.createElement('div'); wrap.className = 'button-group mt-2';
+  const ok = document.createElement('button'); ok.className = 'btn-primary'; ok.textContent = 'OK'; ok.autofocus = true;
+  ok.addEventListener('click', () => d.close());
+  wrap.appendChild(ok);
+  d.append(h, p, wrap);
+  d.addEventListener('close', () => d.remove());
+  document.body.appendChild(d);
+  d.showModal();
 }
 
-/**
- * Show batch status message
- */
-function showBatchStatus(message, type = 'info') {
-  elements.batchStatus.textContent = message;
-  elements.batchStatus.className = `status-msg ${type}`;
-  elements.batchStatus.classList.remove('hidden');
-  
-  setTimeout(() => {
-    elements.batchStatus.classList.add('hidden');
-  }, 3000);
-}
-
-/**
- * Show history modal
- */
-async function showHistory() {
-  const history = await getHistory();
-  
-  if (history.length === 0) {
-    showToast('No history yet', 'info');
-    return;
-  }
-  
-  // Create history modal
-  const modal = createHistoryModal(history);
-  document.body.appendChild(modal);
-}
-
-/**
- * Create history modal
- */
-function createHistoryModal(history) {
-  const overlay = document.createElement('div');
-  overlay.className = 'onboarding-overlay';
-  overlay.style.display = 'flex';
-  
-  const card = document.createElement('div');
-  card.className = 'onboarding-card';
-  card.style.maxWidth = '500px';
-  
-  const header = document.createElement('div');
-  header.className = 'onboarding-header';
-  
-  const title = document.createElement('h2');
-  title.textContent = 'Cleaning History';
-  title.style.marginBottom = '8px';
-  
-  const subtitle = document.createElement('p');
-  subtitle.textContent = `${history.length} URL(s) cleaned`;
-  subtitle.style.margin = '0';
-  
-  header.appendChild(title);
-  header.appendChild(subtitle);
-  
-  const historyList = document.createElement('div');
-  historyList.className = 'history-list';
-  historyList.style.marginBottom = '16px';
-  
-  history.forEach(item => {
-    const historyItem = document.createElement('div');
-    historyItem.className = 'history-item';
-    
-    const urlDiv = document.createElement('div');
-    urlDiv.className = 'history-url';
-    urlDiv.textContent = truncateText(item.sanitizedUrl, 60);
-    
-    const metaDiv = document.createElement('div');
-    metaDiv.className = 'history-meta';
-    
-    const timeSpan = document.createElement('span');
-    timeSpan.textContent = formatTimestamp(item.timestamp);
-    
-    const countSpan = document.createElement('span');
-    countSpan.textContent = `${item.removedCount} removed`;
-    
-    metaDiv.appendChild(timeSpan);
-    metaDiv.appendChild(countSpan);
-    
-    historyItem.appendChild(urlDiv);
-    historyItem.appendChild(metaDiv);
-    
-    historyItem.addEventListener('click', () => {
-      elements.linkInput.value = item.originalUrl;
-      handleInputChange();
-      document.body.removeChild(overlay);
-      elements.tabSingle.click();
-    });
-    
-    historyList.appendChild(historyItem);
-  });
-  
-  const buttonGroup = document.createElement('div');
-  buttonGroup.className = 'button-group';
-  
-  const clearHistoryBtn = document.createElement('button');
-  clearHistoryBtn.className = 'btn-danger';
-  clearHistoryBtn.textContent = 'Clear History';
-  clearHistoryBtn.addEventListener('click', async () => {
-    if (confirm('Clear all history?')) {
-      await clearHistory();
-      document.body.removeChild(overlay);
-      showToast('History cleared', 'success');
-    }
-  });
-  
-  const closeBtn = document.createElement('button');
-  closeBtn.className = 'btn-secondary';
-  closeBtn.textContent = 'Close';
-  closeBtn.addEventListener('click', () => {
-    document.body.removeChild(overlay);
-  });
-  
-  buttonGroup.appendChild(clearHistoryBtn);
-  buttonGroup.appendChild(closeBtn);
-  
-  card.appendChild(header);
-  card.appendChild(historyList);
-  card.appendChild(buttonGroup);
-  overlay.appendChild(card);
-  
-  return overlay;
-}
-
-/**
- * Open settings page
- */
-function openSettings() {
-  chrome.runtime.openOptionsPage();
-}
-
-/**
- * Show about dialog
- */
-function showAbout() {
-  const message = `Link Sanitizer v3.0\n\nA privacy-focused URL cleaning tool that removes tracking parameters from links.\n\nKeyboard Shortcuts:\n• Ctrl+Shift+L - Open extension\n• Ctrl+Shift+S - Quick sanitize\n\nMade with ❤️ for privacy`;
-  alert(message);
-}
-
-/**
- * Show privacy dialog
- */
-function showPrivacy() {
-  const message = `Privacy Policy\n\nLink Sanitizer:\n• Does NOT collect any personal data\n• Does NOT send data to external servers\n• Stores settings and history locally in your browser\n• Only connects to TinyURL when you use the shorten feature\n\nYour data stays on your device.`;
-  alert(message);
-}
-
-/**
- * Show keyboard shortcuts
- */
-function showKeyboardShortcuts() {
-  const message = `Keyboard Shortcuts\n\nGlobal:\n• Ctrl+Shift+L (Cmd+Shift+L on Mac) - Open extension\n• Ctrl+Shift+S (Cmd+Shift+S on Mac) - Quick sanitize clipboard\n\nIn Extension:\n• Ctrl+V - Paste URL\n• Enter - Sanitize (when input focused)\n• Escape - Clear/Close`;
-  alert(message);
-}
-
-/**
- * Handle keyboard shortcuts
- */
-function handleKeyboardShortcut(e) {
-  // Enter to sanitize
-  if (e.key === 'Enter' && e.target === elements.linkInput) {
-    e.preventDefault();
-    handleSanitize();
-  }
-  
-  // Escape to clear
-  if (e.key === 'Escape') {
-    handleClear();
-  }
-}
-
-/**
- * Show onboarding overlay
- */
-function showOnboarding() {
-  elements.onboardingOverlay.classList.remove('hidden');
-  elements.onboardingProgress.style.width = '50%';
-}
-
-/**
- * Show onboarding step 2
- */
-function showOnboardingStep2() {
-  elements.onboardingStep1.classList.add('hidden');
-  elements.onboardingStep2.classList.remove('hidden');
-  elements.onboardingProgress.style.width = '100%';
-}
-
-/**
- * Show onboarding step 1
- */
-function showOnboardingStep1() {
-  elements.onboardingStep2.classList.add('hidden');
-  elements.onboardingStep1.classList.remove('hidden');
-  elements.onboardingProgress.style.width = '50%';
-}
-
-/**
- * Finish onboarding
- */
 async function finishOnboarding() {
-  // Save selected settings
   await saveSettings({
-    autoSanitize: elements.onboardingAutoSanitize.checked,
-    autoPaste: elements.onboardingAutoPaste.checked,
-    autoCopy: elements.onboardingAutoCopy.checked,
+    autoSanitize: el.onboardingAutoSanitize.checked,
+    autoPaste: el.onboardingAutoPaste.checked,
+    autoCopy: el.onboardingAutoCopy.checked,
     firstRun: false
   });
-  
-  await completeOnboarding();
-  
-  // Reload settings
-  currentSettings = await getSettings();
-  
-  // Hide onboarding
-  elements.onboardingOverlay.classList.add('hidden');
-  
-  // Show welcome message
-  showToast('Welcome! Link Sanitizer is ready to use.', 'success', 4000);
-  
-  // Auto-paste if enabled
-  if (currentSettings.autoPaste) {
-    await handleAutoPaste();
-  }
+  settings = await getSettings();
+  el.onboardingDialog.close();
 }
