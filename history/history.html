@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Link Sanitizer — History</title>
+  <link rel="stylesheet" href="../popup/styles.css">
+  <link rel="stylesheet" href="../fonts/fonts.css">
+  <style>
+    body { width: auto; max-width: 900px; margin: 0 auto; padding: 32px 24px; }
+    .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    .page-header h1 { font-size: 22px; margin: 0; }
+    .page-header .meta { font-size: 13px; color: var(--text-secondary); margin-left: 10px; }
+    .controls { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+    .controls input[type="search"] { flex: 1; min-width: 200px; }
+    .history-item { padding: 14px 16px; margin-bottom: 8px; }
+    .history-url { font-size: 13px; word-break: break-all; margin-bottom: 8px; }
+    .history-original { font-size: 11.5px; color: var(--text-tertiary); word-break: break-all; margin-bottom: 8px; }
+    .history-meta { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--text-tertiary); margin-bottom: 10px; }
+    .history-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+    .history-actions button { padding: 6px 12px; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="page-header">
+    <div style="display: flex; align-items: baseline;">
+      <h1>History</h1>
+      <span class="meta" id="countMeta"></span>
+    </div>
+    <button id="clearAllBtn" class="btn-danger">Clear all</button>
+  </div>
+
+  <div class="controls">
+    <input type="search" id="searchInput" placeholder="Search cleaned or original URLs…">
+    <button id="exportBtn" class="btn-secondary">Export</button>
+  </div>
+
+  <div id="historyList"></div>
+
+  <div id="emptyState" class="empty-state hidden">
+    <span class="icon icon-history"></span>
+    <h3>No history yet</h3>
+    <p>Cleaned URLs will appear here after you sanitize them.</p>
+  </div>
+
+  <div id="noResults" class="empty-state hidden">
+    <span class="icon icon-info"></span>
+    <h3>No matches</h3>
+    <p>Try a different search term.</p>
+  </div>
+
+  <dialog id="errorDialog">
+    <h2>Error</h2>
+    <p id="errorDialogMessage"></p>
+    <div class="button-group mt-2">
+      <button class="btn-primary" id="errorDialogClose">OK</button>
+    </div>
+  </dialog>
+
+  <script type="module" src="history.js"></script>
+</body>
+</html>
